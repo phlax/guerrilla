@@ -181,15 +181,30 @@ fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX
 /// When this structure is dropped (falls out of scope), the patch will be reverted and the function will return
 /// to its original state.
 pub struct PatchGuard {
-    ptr: *mut u8,
+    pub ptr: *mut u8,
     len: usize,
     data: [u8; JMP_MAX_SIZE],
+    patch: [u8; JMP_MAX_SIZE],
 }
 
 impl Drop for PatchGuard {
     fn drop(&mut self) {
         unsafe {
             copy_to_protected_address(self.ptr, &self.data[..self.len]);
+        }
+    }
+}
+
+impl PatchGuard {
+    pub fn revert(&self) {
+        unsafe {
+            copy_to_protected_address(self.ptr, &self.data[..self.len]);
+        }
+    }
+
+    pub fn restore(&self) {
+        unsafe {
+            copy_to_protected_address(self.ptr, &self.patch[..self.len]);
         }
     }
 }
@@ -238,6 +253,7 @@ macro_rules! define_patch {
                 ptr: target,
                 len,
                 data: original,
+                patch,
             }
         }
     );
@@ -253,6 +269,26 @@ define_patch!(patch6(A, B, C, D, E, F,));
 define_patch!(patch7(A, B, C, D, E, F, G,));
 define_patch!(patch8(A, B, C, D, E, F, G, H,));
 define_patch!(patch9(A, B, C, D, E, F, G, H, I,));
+
+#[macro_export]
+macro_rules! disable_patch {
+    ($guard:expr, async $($body:tt)*) => {{
+        $guard.revert();
+        let result = async { $($body)* }.await;
+        $guard.restore();
+        result
+    }};
+
+    ($guard:expr, $($body:tt)*) => {{
+        $guard.revert();
+        let result = (|| { $($body)* })();
+        $guard.restore();
+        result
+    }};
+}
+
+unsafe impl Send for PatchGuard {}
+unsafe impl Sync for PatchGuard {}
 
 #[cfg(test)]
 #[inline(never)]

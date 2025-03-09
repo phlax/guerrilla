@@ -7,6 +7,7 @@ readme = "README.md"
 repository = "https://github.com/mehcode/guerrilla"
 documentation = "https://docs.rs/guerrilla"
 authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
+edition = "2021"
 
 [target.'cfg(any(unix, macos))'.dependencies]
 libc = "0.2.43"
